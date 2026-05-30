@@ -82,7 +82,7 @@ function requirePermission(...perms) {
 // === Discord OAuth2 ===
 app.get('/auth/login', (req, res) => {
     const clientId = process.env.DISCORD_CLIENT_ID;
-    const redirectUri = encodeURIComponent(process.env.DISCORD_REDIRECT_URI || `http://localhost:${PORT}/auth/callback`);
+    const redirectUri = encodeURIComponent(process.env.DISCORD_REDIRECT_URI || `${process.env.SITE_URL || `http://localhost:${PORT}`}/auth/callback`);
     const scope = 'identify guilds';
     const url = `https://discord.com/api/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}`;
     res.redirect(url);
@@ -102,7 +102,7 @@ app.get('/auth/callback', async (req, res) => {
                 client_secret: process.env.DISCORD_CLIENT_SECRET,
                 code,
                 grant_type: 'authorization_code',
-                redirect_uri: process.env.DISCORD_REDIRECT_URI || `http://localhost:${PORT}/auth/callback`,
+                redirect_uri: process.env.DISCORD_REDIRECT_URI || `${process.env.SITE_URL || `http://localhost:${PORT}`}/auth/callback`,
                 scope: 'identify guilds'
             })
         });
@@ -518,7 +518,7 @@ async function createDiscordTicket(client, orderId, userId, username, products, 
             productsArray.forEach(p => {
                 const img = p.image || p.image_url;
                 productsList += `📦 **${p.name}** - $${(p.price || 0).toFixed(2)}`;
-                if (img) productsList += `\n> 🖼️ [[الصورة]](${img.startsWith('http') ? img : `http://localhost:${PORT}${img}`})`;
+                if (img) productsList += `\n> 🖼️ [[الصورة]](${img.startsWith('http') ? img : `${process.env.SITE_URL || `http://localhost:${PORT}`}${img}`})`;
                 productsList += '\n';
                 if (!firstImage && img) firstImage = img;
                 total += p.price || 0;
@@ -570,8 +570,9 @@ async function createDiscordTicket(client, orderId, userId, username, products, 
 
 function startWebServer() {
     app.listen(PORT, () => {
-        console.log(`🌐 لوحة التحكم: http://localhost:${PORT}`);
-        console.log(`🛒 صفحة المتجر: http://localhost:${PORT}/store`);
+        const siteUrl = process.env.SITE_URL || `http://localhost:${PORT}`;
+        console.log(`🌐 لوحة التحكم: ${siteUrl}`);
+        console.log(`🛒 صفحة المتجر: ${siteUrl}/store`);
     });
 }
 

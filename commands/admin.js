@@ -25,8 +25,8 @@ module.exports = {
                 return interaction.editReply({ embeds: [noPermEmbed] });
             }
 
-            const webPort = process.env.WEB_PORT || 3000;
-            const panelUrl = `http://localhost:${webPort}`;
+            const siteUrl = process.env.SITE_URL || `http://localhost:${process.env.WEB_PORT || 3000}`;
+            const panelUrl = siteUrl;
 
             // إنشاء embed لوحة التحكم
             const adminEmbed = new EmbedBuilder()

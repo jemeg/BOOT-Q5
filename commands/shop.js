@@ -11,8 +11,8 @@ module.exports = {
 
     async execute(interaction, client) {
         try {
-            const webPort = process.env.WEB_PORT || 3000;
-            const storeUrl = `http://localhost:${webPort}/store`;
+            const siteUrl = process.env.SITE_URL || `http://localhost:${process.env.WEB_PORT || 3000}`;
+            const storeUrl = `${siteUrl}/store`;
             
             const products = db.getActiveProducts();
             

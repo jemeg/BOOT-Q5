@@ -159,7 +159,7 @@ function createTicketEmbed(order, products) {
     products.forEach((product, i) => {
         const img = product.image_url || product.image;
         productsList += `${Icons.PRODUCT} **${product.name}**\n> ${Icons.MONEY} السعر: $${product.price.toFixed(2)}`;
-        if (img) productsList += `\n> ${Icons.IMAGE} [[الصورة]](${img.startsWith('http') ? img : `http://localhost:${process.env.WEB_PORT || 3000}${img}`})`;
+        if (img) productsList += `\n> ${Icons.IMAGE} [[الصورة]](${img.startsWith('http') ? img : `${process.env.SITE_URL || `http://localhost:${process.env.WEB_PORT || 3000}`}${img}`})`;
         productsList += `\n---\n`;
         totalPrice += product.price;
     });

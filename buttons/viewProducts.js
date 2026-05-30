@@ -5,7 +5,8 @@ module.exports = {
     async execute(interaction, client) {
         try {
             const webPort = process.env.WEB_PORT || 3000;
-            const storeUrl = `http://localhost:${webPort}/store`;
+            const siteUrl = process.env.SITE_URL || `http://localhost:${webPort}`;
+            const storeUrl = `${siteUrl}/store`;
             
             const embed = new EmbedBuilder()
                 .setColor(Colors.PRIMARY)
