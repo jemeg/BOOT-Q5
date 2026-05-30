@@ -1,12 +1,17 @@
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 const multer = require('multer');
 const db = require('./database/db');
 const { findExistingTicketChannel } = require('./utils/helpers');
 
+// تأكد من وجود مجلد uploads
+const uploadsDir = path.join(__dirname, 'public', 'uploads');
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+
 // File upload configuration
 const storage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, path.join(__dirname, 'public', 'uploads')),
+    destination: (req, file, cb) => cb(null, uploadsDir),
     filename: (req, file, cb) => {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
         cb(null, uniqueSuffix + path.extname(file.originalname));
@@ -25,7 +30,7 @@ const upload = multer({
 });
 
 const app = express();
-const PORT = process.env.WEB_PORT || 3000;
+const PORT = process.env.WEB_PORT || process.env.PORT || 3000;
 
 // Session storage (in-memory for simplicity)
 const sessions = {};
