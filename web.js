@@ -77,18 +77,6 @@ function getUserPermissions(user, useEnvFallback = true) {
     }
     return [...userPerms];
 }
-        if (process.env.STAFF_ROLE_ID && user.roles.includes(process.env.STAFF_ROLE_ID)) {
-            userPerms.add('view_products'); userPerms.add('view_stats');
-        }
-    }
-    for (const roleId of user.roles) {
-        const rolePerms = allRolePerms[roleId];
-        if (rolePerms && Array.isArray(rolePerms.permissions)) {
-            rolePerms.permissions.forEach(p => userPerms.add(p));
-        }
-    }
-    return [...userPerms];
-}
 
 function requireAuth(req, res, next) {
     if (!req.user) return res.status(401).json({ success: false, error: 'يرجى تسجيل الدخول' });
