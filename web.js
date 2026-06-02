@@ -80,7 +80,34 @@ function getUserPermissions(user, useEnvFallback = true) {
 
 function requireAuth(req, res, next) {
     if (!req.user) return res.status(401).json({ success: false, error: 'يرجى تسجيل الدخول' });
+    // التحقق من انتهاء صلاحية الجلسة
+    const now = Date.now();
+    if (req.user.createdAt && (now - req.user.createdAt) > SESSION_TTL) {
+        const sid = req.headers['x-session-id'];
+        if (sid) delete sessions[sid];
+        return res.status(401).json({ success: false, error: 'انتهت صلاحية الجلسة. يرجى تسجيل الدخول مرة أخرى' });
+    }
     next();
+}
+
+// مدة صلاحية الجلسة: ساعة واحدة (يجب إعادة تسجيل الدخول بعدها)
+const SESSION_TTL = 60 * 60 * 1000;
+// إعادة التحقق من الرتب: 5 دقائق
+const REVALIDATE_INTERVAL = 5 * 60 * 1000;
+
+// إعادة جلب رتب المستخدم من دسكورد
+async function fetchUserRolesFromDiscord(userId) {
+    if (!global.discordClient) return null;
+    try {
+        const guild = global.discordClient.guilds.cache.get(process.env.GUILD_ID);
+        if (!guild) return null;
+        const member = await guild.members.fetch(userId);
+        if (!member) return null;
+        return member.roles.cache.map(r => r.id);
+    } catch (e) {
+        console.log('⚠️ خطأ في جلب الرتب من دسكورد:', e.message);
+        return null;
+    }
 }
 
 function requirePermission(...perms) {
@@ -148,13 +175,16 @@ app.get('/auth/callback', async (req, res) => {
 
         // Create session
         const sessionId = Date.now().toString(36) + Math.random().toString(36).substr(2);
+        const now = Date.now();
         sessions[sessionId] = {
             id: userData.id,
             username: userData.username,
             discriminator: userData.discriminator,
             avatar: userData.avatar ? `https://cdn.discordapp.com/avatars/${userData.id}/${userData.avatar}.png` : null,
             access_token: tokenData.access_token,
-            roles: roles
+            roles: roles,
+            createdAt: now,
+            lastValidated: now
         };
 
         res.redirect(`/?session=${sessionId}`);
@@ -185,6 +215,37 @@ app.get('/api/user/permissions', requireAuth, (req, res) => {
     try {
         const perms = getUserPermissions(req.user, false);
         res.json({ success: true, data: perms });
+    } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+// إعادة التحقق من حساب دسكورد - يجلب الرتب الحالية من السيرفر
+app.post('/api/admin/revalidate', requireAuth, async (req, res) => {
+    try {
+        const now = Date.now();
+        const lastValidated = req.user.lastValidated || 0;
+        // إذا تم التحقق مؤخراً، لا داعي لإعادة الجلب (توفير لطلبات API)
+        if ((now - lastValidated) < REVALIDATE_INTERVAL) {
+            const perms = getUserPermissions(req.user, false);
+            return res.json({ success: true, data: perms, cached: true });
+        }
+        const freshRoles = await fetchUserRolesFromDiscord(req.user.id);
+        if (freshRoles === null) {
+            // البوت غير متصل - استخدم الرتب المخزنة
+            const perms = getUserPermissions(req.user, false);
+            return res.json({ success: true, data: perms, cached: true, warning: 'البوت غير متصل، استخدام الرتب المخزنة' });
+        }
+        // تحديث الرتب والوقت في الجلسة
+        const sid = req.headers['x-session-id'];
+        if (sid && sessions[sid]) {
+            sessions[sid].roles = freshRoles;
+            sessions[sid].lastValidated = now;
+        }
+        req.user.roles = freshRoles;
+        const perms = getUserPermissions(req.user, false);
+        if (perms.length === 0) {
+            return res.status(403).json({ success: false, error: 'لم تعد تملك أي رتبة بصلاحيات إدارية' });
+        }
+        res.json({ success: true, data: perms, roles: freshRoles });
     } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
 

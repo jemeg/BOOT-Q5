@@ -219,7 +219,7 @@
             <div class="page-section" id="page-noaccess" style="text-align:center;padding:80px 20px;">
                 <i class="fas fa-shield-alt" style="font-size:4rem;color:var(--accent);margin-bottom:20px;"></i>
                 <h2 style="margin-bottom:10px;" id="noaccess-title">تسجيل الدخول للوحة التحكم</h2>
-                <p style="color:var(--text-secondary);margin-bottom:20px;" id="noaccess-message">سجّل دخولك عبر دسكورد للوصول للوحة التحكم. يتم التحقق من الصلاحيات تلقائياً من رتبك في السيرفر</p>
+                <p style="color:var(--text-secondary);margin-bottom:20px;" id="noaccess-message">سجّل دخولك عبر دسكورد للوصول للوحة التحكم. سيتم التحقق من حسابك في دسكورد تلقائياً للتأكد من صلاحياتك</p>
                 <div style="max-width:400px;margin:0 auto;">
                     <a href="/auth/login" class="btn btn-primary" style="width:100%;padding:12px;font-size:1rem;display:inline-block;text-decoration:none;">
                         <i class="fab fa-discord"></i> تسجيل الدخول عبر دسكورد
@@ -535,17 +535,61 @@
             const resp = await fetch('/auth/user', { headers: { 'X-Session-ID': savedSession || '' } });
             const data = await resp.json();
             if (!data.success || !data.user) { showNoAccess(); return; }
-            const permResp = await fetch('/api/user/permissions', { headers: { 'X-Session-ID': savedSession } });
-            const permData = await permResp.json();
-            userPermissions = (permData.success && Array.isArray(permData.data)) ? permData.data : [];
+            // إعادة التحقق من الرتب من دسكورد (يكشف إزالة الرتبة)
+            const revalidateResp = await fetch('/api/admin/revalidate', {
+                method: 'POST',
+                headers: { 'X-Session-ID': savedSession }
+            });
+            if (revalidateResp.status === 401 || revalidateResp.status === 403) {
+                localStorage.removeItem('session_id');
+                const errData = await revalidateResp.json().catch(() => ({}));
+                showNoAccess(errData.error || 'انتهت صلاحية الجلسة أو لم تعد تملك صلاحيات. يرجى تسجيل الدخول مرة أخرى');
+                return;
+            }
+            const revalidateData = await revalidateResp.json();
+            if (revalidateData.success && Array.isArray(revalidateData.data)) {
+                userPermissions = revalidateData.data;
+            } else {
+                userPermissions = [];
+            }
             if (userPermissions.length === 0) {
+                localStorage.removeItem('session_id');
                 showNoAccess('حسابك في دسكورد مسجّل لكن ليس لديك رتبة بصلاحيات إدارية. تواصل مع المسؤول إذا كنت تعتقد أن هذا خطأ.');
                 return;
             }
             applyPermissionVisibility();
             loadData();
             setupNav();
+            // بدء التحقق الدوري (كل 5 دقائق)
+            startPeriodicRevalidation();
         } catch (e) { showNoAccess(); }
+    }
+
+    let revalidateTimer = null;
+    function startPeriodicRevalidation() {
+        if (revalidateTimer) clearInterval(revalidateTimer);
+        // كل 5 دقائق: تحقق من الرتب
+        revalidateTimer = setInterval(async () => {
+            const savedSession = localStorage.getItem('session_id');
+            if (!savedSession) { clearInterval(revalidateTimer); return; }
+            try {
+                const resp = await fetch('/api/admin/revalidate', {
+                    method: 'POST',
+                    headers: { 'X-Session-ID': savedSession }
+                });
+                if (resp.status === 401 || resp.status === 403) {
+                    clearInterval(revalidateTimer);
+                    localStorage.removeItem('session_id');
+                    showNoAccess('انتهت الجلسة أو تم إزالة صلاحياتك. يرجى إعادة تسجيل الدخول');
+                    return;
+                }
+                const data = await resp.json();
+                if (data.success && Array.isArray(data.data)) {
+                    userPermissions = data.data;
+                    applyPermissionVisibility();
+                }
+            } catch (e) { /* تجاهل أخطاء الشبكة المؤقتة */ }
+        }, 5 * 60 * 1000);
     }
 
     function showNoAccess(message) {
