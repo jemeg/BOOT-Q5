@@ -604,15 +604,18 @@
         initCharts();
     }
 
-    async function loadProducts() { try { const r=await fetch('/api/products'); const d=await r.json(); if(d.success){products=d.data;renderProducts();renderInventory();} } catch(e){} }
-    async function loadCategories() { try { const r=await fetch('/api/categories'); const d=await r.json(); if(d.success){categories=d.data;renderCategories();updateCategorySelects();} } catch(e){} }
-    async function loadOrders() { try { const r=await fetch('/api/orders'); const d=await r.json(); if(d.success){orders=d.data;renderOrders();} } catch(e){} }
-    async function loadCustomers() { try { const r=await fetch('/api/customers'); const d=await r.json(); if(d.success){customers=d.data;renderCustomers();} } catch(e){} }
-    async function loadStats() { try { const r=await fetch('/api/stats'); const d=await r.json(); if(d.success){document.getElementById('statOrders').textContent=d.data.orderCount;document.getElementById('statSales').textContent='$'+d.data.totalSales.toFixed(2);document.getElementById('statProducts').textContent=d.data.productCount;document.getElementById('statCustomers').textContent=d.data.customerCount;} } catch(e){} }
-    async function loadPermissions() { try { const r=await fetch('/api/permissions'); const d=await r.json(); if(d.success){permissions=d.data;renderPermissions();} } catch(e){} }
-    async function loadSettings() { try { const r=await fetch('/api/settings'); const d=await r.json(); if(d.success){settings=d.data;applySettings();} } catch(e){} }
-    async function loadActivities() { try { const r=await fetch('/api/activities'); const d=await r.json(); if(d.success){activities=d.data;renderActivities();} } catch(e){} }
-    async function loadNotifications() { try { const r=await fetch('/api/notifications'); const d=await r.json(); if(d.success){notifications=d.data;renderNotifications();} } catch(e){} }
+    function sessionId(){return localStorage.getItem('session_id')||'';}
+    function hdrs(h){return Object.assign({'X-Session-ID':sessionId()},h||{});}
+
+    async function loadProducts() { try { const r=await fetch('/api/products',{headers:hdrs()}); const d=await r.json(); if(d.success){products=d.data;renderProducts();renderInventory();} } catch(e){} }
+    async function loadCategories() { try { const r=await fetch('/api/categories',{headers:hdrs()}); const d=await r.json(); if(d.success){categories=d.data;renderCategories();updateCategorySelects();} } catch(e){} }
+    async function loadOrders() { try { const r=await fetch('/api/orders',{headers:hdrs()}); const d=await r.json(); if(d.success){orders=d.data;renderOrders();} } catch(e){} }
+    async function loadCustomers() { try { const r=await fetch('/api/customers',{headers:hdrs()}); const d=await r.json(); if(d.success){customers=d.data;renderCustomers();} } catch(e){} }
+    async function loadStats() { try { const r=await fetch('/api/stats',{headers:hdrs()}); const d=await r.json(); if(d.success){document.getElementById('statOrders').textContent=d.data.orderCount;document.getElementById('statSales').textContent='$'+d.data.totalSales.toFixed(2);document.getElementById('statProducts').textContent=d.data.productCount;document.getElementById('statCustomers').textContent=d.data.customerCount;} } catch(e){} }
+    async function loadPermissions() { try { const r=await fetch('/api/permissions',{headers:hdrs()}); const d=await r.json(); if(d.success){permissions=d.data;renderPermissions();} } catch(e){} }
+    async function loadSettings() { try { const r=await fetch('/api/settings',{headers:hdrs()}); const d=await r.json(); if(d.success){settings=d.data;applySettings();} } catch(e){} }
+    async function loadActivities() { try { const r=await fetch('/api/activities',{headers:hdrs()}); const d=await r.json(); if(d.success){activities=d.data;renderActivities();} } catch(e){} }
+    async function loadNotifications() { try { const r=await fetch('/api/notifications',{headers:hdrs()}); const d=await r.json(); if(d.success){notifications=d.data;renderNotifications();} } catch(e){} }
 
     function renderProducts() {
         const tbody = document.getElementById('productsTable');
@@ -700,13 +703,13 @@
     }
 
     function initCharts() {
-        fetch('/api/charts/sales').then(r=>r.json()).then(d=>{
+        fetch('/api/charts/sales',{headers:hdrs()}).then(r=>r.json()).then(d=>{
             if(!d.success)return;
             const ctx=document.getElementById('salesChart');
             if(salesChart)salesChart.destroy();
             salesChart=new Chart(ctx,{type:'line',data:{labels:d.data.map(i=>i.label),datasets:[{label:'المبيعات',data:d.data.map(i=>i.sales),borderColor:'#7c3aed',backgroundColor:'rgba(124,58,237,0.1)',fill:true,tension:0.4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{color:'#94a3b8'}},x:{ticks:{color:'#94a3b8'}}}}});
         });
-        fetch('/api/charts/monthly').then(r=>r.json()).then(d=>{
+        fetch('/api/charts/monthly',{headers:hdrs()}).then(r=>r.json()).then(d=>{
             if(!d.success)return;
             const ctx=document.getElementById('monthlyChart');
             if(monthlyChart)monthlyChart.destroy();
@@ -744,8 +747,8 @@
 
     // Notifications
     function toggleNotifications(){document.getElementById('notifDropdown').classList.toggle('show');}
-    async function markNotifRead(id){await fetch('/api/notifications/'+id+'/read',{method:'PATCH'});loadNotifications();}
-    async function markAllRead(){await fetch('/api/notifications/read-all',{method:'POST'});loadNotifications();}
+    async function markNotifRead(id){await fetch('/api/notifications/'+id+'/read',{method:'PATCH',headers:hdrs()});loadNotifications();}
+    async function markAllRead(){await fetch('/api/notifications/read-all',{method:'POST',headers:hdrs()});loadNotifications();}
 
     // Inventory
     function filterInventory() {
@@ -868,12 +871,12 @@
         if(!fd.get('name')||!fd.get('price')){showToast('يرجى ملء الحقول المطلوبة','warning');return;}
         const url=id?'/api/products/'+id:'/api/products';
         const method=id?'PUT':'POST';
-        const r=await fetch(url,{method,body:fd});
+        const r=await fetch(url,{method,body:fd,headers:{'X-Session-ID':sessionId()}});
         const d=await r.json();
         if(d.success){showToast(id?'تم التعديل':'تم الإضافة','success');closeModal('productModal');loadProducts();loadStats();}else showToast(d.error,'error');
     }
 
-    async function deleteProduct(id){if(!confirm('هل أنت متأكد من الحذف؟'))return;await fetch('/api/products/'+id,{method:'DELETE'});loadProducts();loadStats();}
+    async function deleteProduct(id){if(!confirm('هل أنت متأكد من الحذف؟'))return;await fetch('/api/products/'+id,{method:'DELETE',headers:hdrs()});loadProducts();loadStats();}
 
     function openCategoryModal(id=null){
         document.getElementById('editCategoryId').value=id||'';
@@ -888,10 +891,10 @@
         if(!data.name){showToast('يرجى إدخال الاسم','warning');return;}
         const url=id?'/api/categories/'+id:'/api/categories';
         const method=id?'PUT':'POST';
-        await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+        await fetch(url,{method,headers:hdrs({'Content-Type':'application/json'}),body:JSON.stringify(data)});
         closeModal('categoryModal');loadCategories();showToast('تم الحفظ','success');
     }
-    async function deleteCategory(id){if(!confirm('سيتم حذف جميع المنتجات المرتبطة'))return;await fetch('/api/categories/'+id,{method:'DELETE'});loadCategories();loadProducts();}
+    async function deleteCategory(id){if(!confirm('سيتم حذف جميع المنتجات المرتبطة'))return;await fetch('/api/categories/'+id,{method:'DELETE',headers:hdrs()});loadCategories();loadProducts();}
 
     function openOrderModal(id){
         const o=orders.find(x=>x.id===id);if(!o)return;
@@ -904,7 +907,7 @@
         const id=document.getElementById('orderModalId').value;
         const status=document.getElementById('orderStatus').value;
         const note=document.getElementById('orderNote').value;
-        await fetch('/api/orders/'+id+'/status',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status,note})});
+        await fetch('/api/orders/'+id+'/status',{method:'PATCH',headers:hdrs({'Content-Type':'application/json'}),body:JSON.stringify({status,note})});
         closeModal('orderModal');loadOrders();showToast('تم التحديث','success');
     }
 
@@ -913,28 +916,28 @@
         const roleId=document.getElementById('permRoleId').value;
         const perms=Array.from(document.querySelectorAll('.perm-cb:checked')).map(cb=>cb.value);
         if(!roleId||!perms.length){showToast('يرجى ملء البيانات','warning');return;}
-        await fetch('/api/permissions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({roleId,permissions:perms})});
+        await fetch('/api/permissions',{method:'POST',headers:hdrs({'Content-Type':'application/json'}),body:JSON.stringify({roleId,permissions:perms})});
         closeModal('permissionModal');loadPermissions();showToast('تم الحفظ','success');
     }
-    async function deletePermission(id){if(!confirm(''))return;await fetch('/api/permissions/'+id,{method:'DELETE'});loadPermissions();}
+    async function deletePermission(id){if(!confirm(''))return;await fetch('/api/permissions/'+id,{method:'DELETE',headers:hdrs()});loadPermissions();}
 
     function openStockModal(id){document.getElementById('stockProductId').value=id;document.getElementById('stockQty').value=1;openModal('stockModal');}
     async function updateStock(){
         const id=document.getElementById('stockProductId').value;
         const qty=parseInt(document.getElementById('stockQty').value);
         const type=document.getElementById('stockType').value;
-        await fetch('/api/products/'+id+'/stock',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({quantity:qty,type})});
+        await fetch('/api/products/'+id+'/stock',{method:'POST',headers:hdrs({'Content-Type':'application/json'}),body:JSON.stringify({quantity:qty,type})});
         closeModal('stockModal');loadProducts();showToast('تم تحديث المخزون','success');
     }
 
-    async function toggleBlockCustomer(id){await fetch('/api/customers/'+id+'/block',{method:'PATCH'});loadCustomers();}
+    async function toggleBlockCustomer(id){await fetch('/api/customers/'+id+'/block',{method:'PATCH',headers:hdrs()});loadCustomers();}
 
     async function saveSettings(section){
         let data={};
         if(section==='store'){data={name:document.getElementById('storeName').value,logo:document.getElementById('storeLogo').value,email:document.getElementById('storeEmail').value,phone:document.getElementById('storePhone').value,currency:document.getElementById('storeCurrency').value,language:document.getElementById('storeLanguage').value};}
         else if(section==='orders'){data={minOrder:parseFloat(document.getElementById('orderMin').value),defaultStatus:document.getElementById('orderDefault').value,autoConfirm:document.getElementById('orderAuto').checked};}
         else if(section==='notifications'){data={discordWebhook:document.getElementById('notifWebhook').value,telegramBot:document.getElementById('notifTelegram').value};}
-        await fetch('/api/settings/'+section,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+        await fetch('/api/settings/'+section,{method:'PUT',headers:hdrs({'Content-Type':'application/json'}),body:JSON.stringify(data)});
         showToast('تم الحفظ','success');loadSettings();
     }
 
