@@ -50,7 +50,9 @@ app.use((req, res, next) => {
 
 // === صلاحيات المستخدم ===
 function getUserPermissions(user) {
-    if (!user || !user.roles || !Array.isArray(user.roles)) return [];
+    if (!user) return [];
+    if (user.isAdmin) return ['all'];
+    if (!user.roles || !Array.isArray(user.roles)) return [];
     const allRolePerms = db.getAllRolePermissions();
     const userPerms = new Set();
     if (process.env.ADMIN_ROLE_ID && user.roles.includes(process.env.ADMIN_ROLE_ID)) userPerms.add('all');
@@ -159,6 +161,27 @@ app.get('/auth/logout', (req, res) => {
     const sessionId = req.headers['x-session-id'] || req.query.session;
     if (sessionId) delete sessions[sessionId];
     res.json({ success: true });
+});
+
+// تسجيل دخول المدير بكلمة مرور (بدون Discord)
+app.post('/api/admin/login', (req, res) => {
+    try {
+        const { password } = req.body;
+        const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+        if (password !== adminPassword) {
+            return res.status(401).json({ success: false, error: 'كلمة المرور خاطئة' });
+        }
+        const sessionId = Date.now().toString(36) + Math.random().toString(36).substr(2);
+        sessions[sessionId] = {
+            id: 'admin',
+            username: 'Admin',
+            discriminator: '0001',
+            avatar: null,
+            roles: ['admin_login'],
+            isAdmin: true
+        };
+        res.json({ success: true, session: sessionId });
+    } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
 app.get('/auth/user', (req, res) => {

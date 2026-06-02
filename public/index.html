@@ -218,9 +218,13 @@
             <!-- No Access -->
             <div class="page-section" id="page-noaccess" style="text-align:center;padding:80px 20px;">
                 <i class="fas fa-shield-alt" style="font-size:4rem;color:var(--accent);margin-bottom:20px;"></i>
-                <h2 style="margin-bottom:10px;">ليس لديك صلاحية</h2>
-                <p style="color:var(--text-secondary);margin-bottom:20px;">هذه اللوحة مخصصة للإدارة فقط. إذا كنت تملك صلاحية، يرجى تسجيل الدخول بحساب دسكورد.</p>
-                <button class="btn btn-primary" onclick="window.location.href='/auth/login'"><i class="fas fa-sign-in-alt"></i> تسجيل الدخول بدسكورد</button>
+                <h2 style="margin-bottom:10px;">تسجيل الدخول للوحة التحكم</h2>
+                <p style="color:var(--text-secondary);margin-bottom:20px;">أدخل كلمة المرور للوصول إلى لوحة الإدارة</p>
+                <div style="max-width:400px;margin:0 auto;">
+                    <input type="password" id="adminPassword" placeholder="كلمة المرور" style="width:100%;padding:12px;border-radius:10px;border:1px solid var(--border-color);background:var(--bg-primary);color:var(--text-primary);font-family:'Cairo',sans-serif;font-size:1rem;text-align:center;margin-bottom:15px;" onkeydown="if(event.key==='Enter')adminLogin()">
+                    <button class="btn btn-primary" onclick="adminLogin()" style="width:100%;padding:12px;font-size:1rem;"><i class="fas fa-sign-in-alt"></i> تسجيل الدخول</button>
+                    <p id="loginError" style="color:var(--danger);margin-top:10px;display:none;"></p>
+                </div>
             </div>
 
             <!-- Loading -->
@@ -523,17 +527,39 @@
             const resp = await fetch('/auth/user', { headers: { 'X-Session-ID': savedSession || '' } });
             const data = await resp.json();
             if (!data.success || !data.user) { showNoAccess(); return; }
-            // جلب الصلاحيات
             const permResp = await fetch('/api/user/permissions', { headers: { 'X-Session-ID': savedSession } });
             const permData = await permResp.json();
             if (permData.success) userPermissions = permData.data;
             else userPermissions = [];
-            // إظهار/إخفاء الأقسام حسب الصلاحية
             applyPermissionVisibility();
-            // تحميل البيانات للأقسام المسموحة
             loadData();
             setupNav();
         } catch (e) { showNoAccess(); }
+    }
+
+    async function adminLogin() {
+        const pw = document.getElementById('adminPassword').value;
+        const errEl = document.getElementById('loginError');
+        if (!pw) { errEl.textContent = 'أدخل كلمة المرور'; errEl.style.display = 'block'; return; }
+        try {
+            const resp = await fetch('/api/admin/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password: pw })
+            });
+            const data = await resp.json();
+            if (data.success && data.session) {
+                localStorage.setItem('session_id', data.session);
+                errEl.style.display = 'none';
+                await checkAdminAuth();
+            } else {
+                errEl.textContent = data.error || 'كلمة المرور خاطئة';
+                errEl.style.display = 'block';
+            }
+        } catch (e) {
+            errEl.textContent = 'خطأ في الاتصال';
+            errEl.style.display = 'block';
+        }
     }
 
     function showNoAccess() {
