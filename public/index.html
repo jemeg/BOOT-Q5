@@ -218,12 +218,13 @@
             <!-- No Access -->
             <div class="page-section" id="page-noaccess" style="text-align:center;padding:80px 20px;">
                 <i class="fas fa-shield-alt" style="font-size:4rem;color:var(--accent);margin-bottom:20px;"></i>
-                <h2 style="margin-bottom:10px;">تسجيل الدخول للوحة التحكم</h2>
-                <p style="color:var(--text-secondary);margin-bottom:20px;">أدخل ID رتبة دسكورد التي تريد الدخول بها (يتم التحقق من الصلاحيات من قاعدة البيانات)</p>
+                <h2 style="margin-bottom:10px;" id="noaccess-title">تسجيل الدخول للوحة التحكم</h2>
+                <p style="color:var(--text-secondary);margin-bottom:20px;" id="noaccess-message">سجّل دخولك عبر دسكورد للوصول للوحة التحكم. يتم التحقق من الصلاحيات تلقائياً من رتبك في السيرفر</p>
                 <div style="max-width:400px;margin:0 auto;">
-                    <input type="text" id="adminRoleId" placeholder="مثال: 1500543082435969064" style="width:100%;padding:12px;border-radius:10px;border:1px solid var(--border-color);background:var(--bg-primary);color:var(--text-primary);font-family:'Cairo',sans-serif;font-size:1rem;text-align:center;margin-bottom:15px;" onkeydown="if(event.key==='Enter')adminLogin()">
-                    <button class="btn btn-primary" onclick="adminLogin()" style="width:100%;padding:12px;font-size:1rem;"><i class="fas fa-sign-in-alt"></i> دخول</button>
-                    <p id="loginError" style="color:var(--danger);margin-top:10px;display:none;"></p>
+                    <a href="/auth/login" class="btn btn-primary" style="width:100%;padding:12px;font-size:1rem;display:inline-block;text-decoration:none;">
+                        <i class="fab fa-discord"></i> تسجيل الدخول عبر دسكورد
+                    </a>
+                    <p id="noaccess-detail" style="color:var(--text-secondary);margin-top:15px;font-size:0.85rem;"></p>
                 </div>
             </div>
 
@@ -517,6 +518,13 @@
 
     document.addEventListener('DOMContentLoaded', async () => {
         loadTheme();
+        // جلب session من URL بعد OAuth callback
+        const urlParams = new URLSearchParams(window.location.search);
+        const sessionFromUrl = urlParams.get('session');
+        if (sessionFromUrl) {
+            localStorage.setItem('session_id', sessionFromUrl);
+            window.history.replaceState({}, document.title, '/');
+        }
         await checkAdminAuth();
     });
 
@@ -529,45 +537,24 @@
             if (!data.success || !data.user) { showNoAccess(); return; }
             const permResp = await fetch('/api/user/permissions', { headers: { 'X-Session-ID': savedSession } });
             const permData = await permResp.json();
-            if (permData.success) userPermissions = permData.data;
-            else userPermissions = [];
+            userPermissions = (permData.success && Array.isArray(permData.data)) ? permData.data : [];
+            if (userPermissions.length === 0) {
+                showNoAccess('حسابك في دسكورد مسجّل لكن ليس لديك رتبة بصلاحيات إدارية. تواصل مع المسؤول إذا كنت تعتقد أن هذا خطأ.');
+                return;
+            }
             applyPermissionVisibility();
             loadData();
             setupNav();
         } catch (e) { showNoAccess(); }
     }
 
-    async function adminLogin() {
-        const roleId = document.getElementById('adminRoleId').value.trim();
-        const errEl = document.getElementById('loginError');
-        if (!roleId) { errEl.textContent = 'أدخل ID الرتبة'; errEl.style.display = 'block'; return; }
-        if (!/^\d{17,20}$/.test(roleId)) { errEl.textContent = 'ID الرتبة يجب أن يكون أرقام فقط (17-20 رقم)'; errEl.style.display = 'block'; return; }
-        try {
-            const resp = await fetch('/api/admin/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ roleId: roleId })
-            });
-            const data = await resp.json();
-            if (data.success && data.session) {
-                localStorage.setItem('session_id', data.session);
-                errEl.style.display = 'none';
-                await checkAdminAuth();
-            } else {
-                errEl.textContent = data.error || 'هذه الرتبة ليس لها صلاحيات';
-                errEl.style.display = 'block';
-            }
-        } catch (e) {
-            errEl.textContent = 'خطأ في الاتصال';
-            errEl.style.display = 'block';
-        }
-    }
-
-    function showNoAccess() {
+    function showNoAccess(message) {
         document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
         document.getElementById('page-noaccess').classList.add('active');
         document.getElementById('pageTitle').textContent = 'غير مصرح';
         document.querySelector('.header p').textContent = 'ليس لديك صلاحية للدخول';
+        const detailEl = document.getElementById('noaccess-detail');
+        if (detailEl && message) detailEl.textContent = message;
     }
 
     function applyPermissionVisibility() {

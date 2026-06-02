@@ -51,17 +51,32 @@ app.use((req, res, next) => {
 // === صلاحيات المستخدم ===
 // useEnvFallback = true: للبوت في دسكورد (يستخدم env كـ fallback)
 // useEnvFallback = false: للوحة التحكم ويب (يستخدم DB فقط)
+// ADMIN_ROLE_ID = رتبة المسؤول الرسمية - تحصل على تحكم كامل في الموقع
+const ADMIN_ROLE_ID = process.env.ADMIN_ROLE_ID || '1500543082435969064';
 function getUserPermissions(user, useEnvFallback = true) {
     if (!user) return [];
     if (user.isAdmin) return ['all'];
     if (!user.roles || !Array.isArray(user.roles)) return [];
+    // رتبة المسؤول الرسمية → تحكم كامل
+    if (user.roles.includes(ADMIN_ROLE_ID)) return ['all'];
     const allRolePerms = db.getAllRolePermissions();
     const userPerms = new Set();
     if (useEnvFallback) {
-        if (process.env.ADMIN_ROLE_ID && user.roles.includes(process.env.ADMIN_ROLE_ID)) userPerms.add('all');
         if (process.env.MANAGER_ROLE_ID && user.roles.includes(process.env.MANAGER_ROLE_ID)) {
             userPerms.add('manage_products'); userPerms.add('manage_orders'); userPerms.add('view_stats'); userPerms.add('manage_settings');
         }
+        if (process.env.STAFF_ROLE_ID && user.roles.includes(process.env.STAFF_ROLE_ID)) {
+            userPerms.add('view_products'); userPerms.add('view_stats');
+        }
+    }
+    for (const roleId of user.roles) {
+        const rolePerms = allRolePerms[roleId];
+        if (rolePerms && Array.isArray(rolePerms.permissions)) {
+            rolePerms.permissions.forEach(p => userPerms.add(p));
+        }
+    }
+    return [...userPerms];
+}
         if (process.env.STAFF_ROLE_ID && user.roles.includes(process.env.STAFF_ROLE_ID)) {
             userPerms.add('view_products'); userPerms.add('view_stats');
         }
@@ -153,8 +168,8 @@ app.get('/auth/callback', async (req, res) => {
             access_token: tokenData.access_token,
             roles: roles
         };
-        
-        res.redirect(`/store?session=${sessionId}`);
+
+        res.redirect(`/?session=${sessionId}`);
     } catch (error) {
         console.error('OAuth error:', error);
         res.redirect('/store?error=server_error');
@@ -165,32 +180,6 @@ app.get('/auth/logout', (req, res) => {
     const sessionId = req.headers['x-session-id'] || req.query.session;
     if (sessionId) delete sessions[sessionId];
     res.json({ success: true });
-});
-
-// تسجيل دخول المدير بكود رتبة دسكورد - صلاحيات من قاعدة البيانات فقط
-app.post('/api/admin/login', (req, res) => {
-    try {
-        const { roleId } = req.body;
-        if (!roleId || !/^\d{17,20}$/.test(String(roleId).trim())) {
-            return res.status(400).json({ success: false, error: 'أدخل ID رتبة دسكورد صحيح' });
-        }
-        const trimmedRole = String(roleId).trim();
-        const dbPermissions = db.getAllRolePermissions();
-        const rolePerms = dbPermissions[trimmedRole];
-        // الرتبة يجب أن تكون مسجلة في قاعدة البيانات ولها صلاحيات
-        if (!rolePerms || !Array.isArray(rolePerms.permissions) || rolePerms.permissions.length === 0) {
-            return res.status(403).json({ success: false, error: 'هذه الرتبة غير مسجلة في الصلاحيات. أضفها من قسم الصلاحيات أولاً' });
-        }
-        const sessionId = Date.now().toString(36) + Math.random().toString(36).substr(2);
-        sessions[sessionId] = {
-            id: 'admin_role',
-            username: `Role ${trimmedRole.slice(-4)}`,
-            discriminator: '0000',
-            avatar: null,
-            roles: [trimmedRole]
-        };
-        res.json({ success: true, session: sessionId });
-    } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
 app.get('/auth/user', (req, res) => {
