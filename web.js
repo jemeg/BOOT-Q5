@@ -49,18 +49,22 @@ app.use((req, res, next) => {
 });
 
 // === صلاحيات المستخدم ===
-function getUserPermissions(user) {
+// useEnvFallback = true: للبوت في دسكورد (يستخدم env كـ fallback)
+// useEnvFallback = false: للوحة التحكم ويب (يستخدم DB فقط)
+function getUserPermissions(user, useEnvFallback = true) {
     if (!user) return [];
     if (user.isAdmin) return ['all'];
     if (!user.roles || !Array.isArray(user.roles)) return [];
     const allRolePerms = db.getAllRolePermissions();
     const userPerms = new Set();
-    if (process.env.ADMIN_ROLE_ID && user.roles.includes(process.env.ADMIN_ROLE_ID)) userPerms.add('all');
-    if (process.env.MANAGER_ROLE_ID && user.roles.includes(process.env.MANAGER_ROLE_ID)) {
-        userPerms.add('manage_products'); userPerms.add('manage_orders'); userPerms.add('view_stats'); userPerms.add('manage_settings');
-    }
-    if (process.env.STAFF_ROLE_ID && user.roles.includes(process.env.STAFF_ROLE_ID)) {
-        userPerms.add('view_products'); userPerms.add('view_stats');
+    if (useEnvFallback) {
+        if (process.env.ADMIN_ROLE_ID && user.roles.includes(process.env.ADMIN_ROLE_ID)) userPerms.add('all');
+        if (process.env.MANAGER_ROLE_ID && user.roles.includes(process.env.MANAGER_ROLE_ID)) {
+            userPerms.add('manage_products'); userPerms.add('manage_orders'); userPerms.add('view_stats'); userPerms.add('manage_settings');
+        }
+        if (process.env.STAFF_ROLE_ID && user.roles.includes(process.env.STAFF_ROLE_ID)) {
+            userPerms.add('view_products'); userPerms.add('view_stats');
+        }
     }
     for (const roleId of user.roles) {
         const rolePerms = allRolePerms[roleId];
@@ -163,7 +167,7 @@ app.get('/auth/logout', (req, res) => {
     res.json({ success: true });
 });
 
-// تسجيل دخول المدير بكود رتبة دسكورد
+// تسجيل دخول المدير بكود رتبة دسكورد - صلاحيات من قاعدة البيانات فقط
 app.post('/api/admin/login', (req, res) => {
     try {
         const { roleId } = req.body;
@@ -173,14 +177,9 @@ app.post('/api/admin/login', (req, res) => {
         const trimmedRole = String(roleId).trim();
         const dbPermissions = db.getAllRolePermissions();
         const rolePerms = dbPermissions[trimmedRole];
-        let allowedRoles = [];
-        if (process.env.ADMIN_ROLE_ID) allowedRoles.push(process.env.ADMIN_ROLE_ID);
-        if (process.env.MANAGER_ROLE_ID) allowedRoles.push(process.env.MANAGER_ROLE_ID);
-        if (process.env.STAFF_ROLE_ID) allowedRoles.push(process.env.STAFF_ROLE_ID);
-        const hasDbPerms = rolePerms && Array.isArray(rolePerms.permissions) && rolePerms.permissions.length > 0;
-        const isEnvRole = allowedRoles.includes(trimmedRole);
-        if (!hasDbPerms && !isEnvRole) {
-            return res.status(403).json({ success: false, error: 'هذه الرتبة ليس لها صلاحيات. أضفها من قسم الصلاحيات أولاً' });
+        // الرتبة يجب أن تكون مسجلة في قاعدة البيانات ولها صلاحيات
+        if (!rolePerms || !Array.isArray(rolePerms.permissions) || rolePerms.permissions.length === 0) {
+            return res.status(403).json({ success: false, error: 'هذه الرتبة غير مسجلة في الصلاحيات. أضفها من قسم الصلاحيات أولاً' });
         }
         const sessionId = Date.now().toString(36) + Math.random().toString(36).substr(2);
         sessions[sessionId] = {
@@ -204,10 +203,10 @@ app.get('/auth/user', (req, res) => {
     }
 });
 
-// نقطة جلب صلاحيات المستخدم (للوحة التحكم)
+// نقطة جلب صلاحيات المستخدم (للوحة التحكم) - DB فقط بدون env fallback
 app.get('/api/user/permissions', requireAuth, (req, res) => {
     try {
-        const perms = getUserPermissions(req.user);
+        const perms = getUserPermissions(req.user, false);
         res.json({ success: true, data: perms });
     } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
