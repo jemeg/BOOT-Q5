@@ -219,10 +219,10 @@
             <div class="page-section" id="page-noaccess" style="text-align:center;padding:80px 20px;">
                 <i class="fas fa-shield-alt" style="font-size:4rem;color:var(--accent);margin-bottom:20px;"></i>
                 <h2 style="margin-bottom:10px;">تسجيل الدخول للوحة التحكم</h2>
-                <p style="color:var(--text-secondary);margin-bottom:20px;">أدخل كلمة المرور للوصول إلى لوحة الإدارة</p>
+                <p style="color:var(--text-secondary);margin-bottom:20px;">أدخل ID رتبة دسكورد التي تريد الدخول بها (يتم التحقق من الصلاحيات من قاعدة البيانات)</p>
                 <div style="max-width:400px;margin:0 auto;">
-                    <input type="password" id="adminPassword" placeholder="كلمة المرور" style="width:100%;padding:12px;border-radius:10px;border:1px solid var(--border-color);background:var(--bg-primary);color:var(--text-primary);font-family:'Cairo',sans-serif;font-size:1rem;text-align:center;margin-bottom:15px;" onkeydown="if(event.key==='Enter')adminLogin()">
-                    <button class="btn btn-primary" onclick="adminLogin()" style="width:100%;padding:12px;font-size:1rem;"><i class="fas fa-sign-in-alt"></i> تسجيل الدخول</button>
+                    <input type="text" id="adminRoleId" placeholder="مثال: 1500543082435969064" style="width:100%;padding:12px;border-radius:10px;border:1px solid var(--border-color);background:var(--bg-primary);color:var(--text-primary);font-family:'Cairo',sans-serif;font-size:1rem;text-align:center;margin-bottom:15px;" onkeydown="if(event.key==='Enter')adminLogin()">
+                    <button class="btn btn-primary" onclick="adminLogin()" style="width:100%;padding:12px;font-size:1rem;"><i class="fas fa-sign-in-alt"></i> دخول</button>
                     <p id="loginError" style="color:var(--danger);margin-top:10px;display:none;"></p>
                 </div>
             </div>
@@ -538,14 +538,15 @@
     }
 
     async function adminLogin() {
-        const pw = document.getElementById('adminPassword').value;
+        const roleId = document.getElementById('adminRoleId').value.trim();
         const errEl = document.getElementById('loginError');
-        if (!pw) { errEl.textContent = 'أدخل كلمة المرور'; errEl.style.display = 'block'; return; }
+        if (!roleId) { errEl.textContent = 'أدخل ID الرتبة'; errEl.style.display = 'block'; return; }
+        if (!/^\d{17,20}$/.test(roleId)) { errEl.textContent = 'ID الرتبة يجب أن يكون أرقام فقط (17-20 رقم)'; errEl.style.display = 'block'; return; }
         try {
             const resp = await fetch('/api/admin/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ password: pw })
+                body: JSON.stringify({ roleId: roleId })
             });
             const data = await resp.json();
             if (data.success && data.session) {
@@ -553,7 +554,7 @@
                 errEl.style.display = 'none';
                 await checkAdminAuth();
             } else {
-                errEl.textContent = data.error || 'كلمة المرور خاطئة';
+                errEl.textContent = data.error || 'هذه الرتبة ليس لها صلاحيات';
                 errEl.style.display = 'block';
             }
         } catch (e) {

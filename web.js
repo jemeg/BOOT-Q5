@@ -163,22 +163,32 @@ app.get('/auth/logout', (req, res) => {
     res.json({ success: true });
 });
 
-// تسجيل دخول المدير بكلمة مرور (بدون Discord)
+// تسجيل دخول المدير بكود رتبة دسكورد
 app.post('/api/admin/login', (req, res) => {
     try {
-        const { password } = req.body;
-        const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
-        if (password !== adminPassword) {
-            return res.status(401).json({ success: false, error: 'كلمة المرور خاطئة' });
+        const { roleId } = req.body;
+        if (!roleId || !/^\d{17,20}$/.test(String(roleId).trim())) {
+            return res.status(400).json({ success: false, error: 'أدخل ID رتبة دسكورد صحيح' });
+        }
+        const trimmedRole = String(roleId).trim();
+        const dbPermissions = db.getAllRolePermissions();
+        const rolePerms = dbPermissions[trimmedRole];
+        let allowedRoles = [];
+        if (process.env.ADMIN_ROLE_ID) allowedRoles.push(process.env.ADMIN_ROLE_ID);
+        if (process.env.MANAGER_ROLE_ID) allowedRoles.push(process.env.MANAGER_ROLE_ID);
+        if (process.env.STAFF_ROLE_ID) allowedRoles.push(process.env.STAFF_ROLE_ID);
+        const hasDbPerms = rolePerms && Array.isArray(rolePerms.permissions) && rolePerms.permissions.length > 0;
+        const isEnvRole = allowedRoles.includes(trimmedRole);
+        if (!hasDbPerms && !isEnvRole) {
+            return res.status(403).json({ success: false, error: 'هذه الرتبة ليس لها صلاحيات. أضفها من قسم الصلاحيات أولاً' });
         }
         const sessionId = Date.now().toString(36) + Math.random().toString(36).substr(2);
         sessions[sessionId] = {
-            id: 'admin',
-            username: 'Admin',
-            discriminator: '0001',
+            id: 'admin_role',
+            username: `Role ${trimmedRole.slice(-4)}`,
+            discriminator: '0000',
             avatar: null,
-            roles: ['admin_login'],
-            isAdmin: true
+            roles: [trimmedRole]
         };
         res.json({ success: true, session: sessionId });
     } catch (e) { res.status(500).json({ success: false, error: e.message }); }
